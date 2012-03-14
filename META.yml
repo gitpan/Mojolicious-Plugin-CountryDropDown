@@ -1,0 +1,21 @@
+---
+abstract: 'Provide a dropdown where users can select a country'
+author:
+  - 'Renee Baecker <module@renee-baecker.de>'
+  - 'Heiko Jansen <jansen@hbz-nrw.de>'
+build_requires: {}
+configure_requires:
+  ExtUtils::MakeMaker: 6.30
+dynamic_config: 0
+generated_by: 'Dist::Zilla version 4.300009, CPAN::Meta::Converter version 2.120351'
+license: gpl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Mojolicious-Plugin-CountryDropDown
+requires:
+  Locale::Codes: 3.20
+  Locale::Country::Multilingual: 0.23
+  Mojolicious: 2.00
+  Unicode::Collate: 0
+version: 0.04
