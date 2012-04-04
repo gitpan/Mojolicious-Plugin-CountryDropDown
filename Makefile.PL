@@ -25,7 +25,7 @@ my %WriteMakefileArgs = (
     "Mojolicious" => "2.00",
     "Unicode::Collate" => 0
   },
-  "VERSION" => "0.04",
+  "VERSION" => "0.0501",
   "test" => {
     "TESTS" => "t/*.t"
   }

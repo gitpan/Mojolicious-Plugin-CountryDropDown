@@ -6,17 +6,20 @@ use strict;
 use warnings;
 
 use Mojo::Base 'Mojolicious::Plugin';
+use Mojo::ByteStream;
 use Locale::Country::Multilingual { use_io_layer => 1 };
 use Unicode::Collate;
 
-our $VERSION = 0.04;
+our $VERSION = 0.05_01;
+$VERSION = eval $VERSION;
 
 sub register {
 	my $self = shift;
 	my $app  = shift;
 	my $conf = shift || {};
 
-	$conf->{lang} = uc( $conf->{lang} || 'EN' );
+	$conf->{lang}     = uc( $conf->{lang} || 'EN' );
+	$conf->{selected} = '';
 
 	my $collate = Unicode::Collate->new();
 	my $lcm     = Locale::Country::Multilingual->new();
@@ -30,6 +33,37 @@ sub register {
 	else {
 		$lcm->set_lang( $conf->{lang} );
 	}
+
+	my $_html = sub {
+		my %opt = %{ shift || {} };
+		my $code = $opt{selected} ? uc( $opt{selected} ) : $conf->{selected};
+		my $lang = lc( $opt{lang} || $conf->{lang} );
+		my %attr = %{ $opt{attr} || {} };
+		
+		$attr{id}   = 'country' unless defined( $attr{id}   ) and length( $attr{id}   ) > 0;
+		$attr{name} = 'country' unless defined( $attr{name} ) and length( $attr{name} ) > 0;
+
+		my @sorted = $collate->sort( $lcm->all_country_names($lang) );
+		my %list   = ();
+		foreach (@sorted) {
+			$list{$_} = $lcm->country2code( $_, 'LOCALE_CODE_ALPHA_2', $lang );
+		}
+
+		my $options
+			= join "\n", map {
+			my $selected = uc( $list{$_} ) eq $code ? ' selected="selected"' : '';
+			sprintf '<option value="%s"%s>%s</option>', $list{$_}, $selected, $_;
+			} @sorted;
+
+		my $attribs = '';
+		foreach my $k ( sort keys %attr ) {
+			$attr{$k} =~ s/"/&quot;/go;
+			$attribs .= sprintf( ' %s="%s"', $k, $attr{$k} );
+		}
+		substr( $attribs, 0, 1 ) = '';
+
+		return sprintf( "<select %s>\n%s\n</select>", $attribs, $options );
+	};
 
 	$app->helper(
 		get_country_list => sub {
@@ -48,29 +82,8 @@ sub register {
 	$app->helper(
 		show_country_list => sub {
 			my $self = shift;
-
-			my %opt = %{ shift || {} };
-			my $code = $opt{selected} ? uc( $opt{selected} ) : '';
-			my $lang = lc( $opt{lang} || $conf->{lang} );
-			my $id_attr   = $opt{id}   || 'country';
-			my $name_attr = $opt{name} || 'country';
-
-			my @sorted = $collate->sort( $lcm->all_country_names($lang) );
-			my %list   = ();
-			foreach (@sorted) {
-				$list{$_} = $lcm->country2code( $_, 'LOCALE_CODE_ALPHA_2', $lang );
-			}
-
-			my $options
-				= join "\n", map {
-				my $selected = uc( $list{$_} ) eq $code ? ' selected="selected"' : '';
-				sprintf '<option value="%s"%s>%s</option>', $list{$_}, $selected, $_;
-				} @sorted;
-
-			my $elem = sprintf( '<select name="%s" id="%s">%s</select>', $name_attr, $id_attr,
-				$options );
-
-			$self->stash( country_drop_down => $elem );
+			$self->stash( country_drop_down => $_html->(@_) );
+			return;
 		}
 	);
 
@@ -95,6 +108,15 @@ sub register {
 			return $lcm->country2code( $country, 'LOCALE_CODE_ALPHA_2', $lang );
 		}
 	);
+
+	$app->helper(
+		'country_drop_down' => sub {
+			my $self = shift;
+			return Mojo::ByteStream->new( $_html->(@_) );
+		}
+	);
+
+	return;
 } ## end sub register
 
 1;
@@ -108,7 +130,7 @@ Mojolicious::Plugin::CountryDropDown - Provide a dropdown where users can select
 
 =head1 VERSION
 
-version 0.04
+version 0.0501
 
 =head1 SYNOPSIS
 
@@ -123,10 +145,6 @@ version 0.04
         # to specify the default language for the country names
     }
 
-In your template (this time with TemplateToolkit syntax):
-
-    [% country_drop_down %]
-
 In your controller:
 
     get '/' => sub {
@@ -134,13 +152,24 @@ In your controller:
         $self->show_country_list(); # this sets "country_drop_down" in the stash
     };
 
+In your template (this time with TemplateToolkit syntax):
+
+    [% country_drop_down %]
+
+Alternatively - using 0.05_01 and up - you can omit the show_country_list() method call
+inside the controller and use a helper method directly in the template, e.g.:
+
+    [% h.country_drop_down({ lang => 'de' }) %]
+
 =head1 NAME
 
 Mojolicious::Plugin::CountryDrowDown - use a dropdown to select countries in your form
 
 =head1 WARNINGS
 
-Version 0.04 is the first public release and for now considered a beta release!
+Version 0.04 was the first public release and considered a beta release!
+Version 0.05_01 includes some API changes and there may be some more coming
+before version 0.06 is released - so please watch out when updating!
 
 =head1 CONFIGURATION
 
@@ -191,21 +220,26 @@ A ISO 3166 Alpha 2 country code denoting a preselected country.
 Determines the language of the country names.
 The default is the value specified when registering the plugin (see above).
 
-=item id
+=item attr
 
-The value for the "id" attribute of the "select" element.
-Defaults to "country".
+The value is another hash ref whose keys are used as HTML attributes of the 
+"select" element. No validity checking is performed regarding attribute names
+and values.
 
-=item name
-
-The value for the "name" attribute of the "select" element.
-Defaults to "country".
+Unless you specify any values for the attributes "id" and "name" they are 
+both set to "country".
 
 =back
 
     my $selected = 'DE'; # select Germany
     my $language = 'fr';
     $self->show_country_list( { select => $selected, lang => $language } );
+
+    $self->show_country_list( {
+            select => $selected, 
+            lang => $language,
+			attr => { id => "cid", name => "cname" }
+    });
 
 =head2 get_country_list
 
