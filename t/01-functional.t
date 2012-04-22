@@ -4,7 +4,7 @@ use warnings;
 
 BEGIN { $ENV{MOJO_NO_IPV6} = $ENV{MOJO_POLL} = 1 }
 
-use Test::More tests => 7;
+use Test::More tests => 6;
 
 # testing code starts here
 use Mojolicious::Lite;
@@ -14,21 +14,15 @@ plugin 'CountryDropDown';
 
 app->log->level( 'debug' );
 
-get '/stash' => sub {
-    my $self = shift;
-
-    $self->show_country_list;
-    $self->render( text => $self->stash->{country_drop_down} );
-};
-
 get '/helper' => 'helper';
+
+get '/deprecated' => 'deprecated';
 
 my $t = Test::Mojo->new;
 
-is 1,1;
-
-$t->get_ok('/stash')->status_is(200)->content_like(qr/"DE"\s*>Germany<\/option>/);
 $t->get_ok('/helper')->status_is(200)->content_like(qr/"DE"\s*>Germany<\/option>/);
+
+$t->get_ok('/deprecated')->status_is(200)->content_like(qr/"DE"\s*>Germany<\/option>/);
 
 __DATA__
 
@@ -37,8 +31,18 @@ __DATA__
   <head></head>
   <body>
     <form>
+      <%= country_select_field() %>
+    </form>
+  </body>
+</html>
+
+@@ deprecated.html.ep
+<html>
+  <head></head>
+  <body>
+    <form>
       <%= country_drop_down() %>
-	</form>
+    </form>
   </body>
 </html>
 

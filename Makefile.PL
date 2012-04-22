@@ -10,7 +10,7 @@ use ExtUtils::MakeMaker 6.30;
 
 my %WriteMakefileArgs = (
   "ABSTRACT" => "Provide a dropdown where users can select a country",
-  "AUTHOR" => "Renee Baecker <module\@renee-baecker.de>, Heiko Jansen <jansen\@hbz-nrw.de>",
+  "AUTHOR" => "Renee Baecker <module\@renee-baecker.de>, Heiko Jansen <jansen\@hbz-nrw.de>, Skye Shaw <sshaw AT lucas.cis.temple.edu>",
   "BUILD_REQUIRES" => {},
   "CONFIGURE_REQUIRES" => {
     "ExtUtils::MakeMaker" => "6.30"
@@ -25,7 +25,7 @@ my %WriteMakefileArgs = (
     "Mojolicious" => "2.00",
     "Unicode::Collate" => 0
   },
-  "VERSION" => "0.0501",
+  "VERSION" => "0.0502",
   "test" => {
     "TESTS" => "t/*.t"
   }

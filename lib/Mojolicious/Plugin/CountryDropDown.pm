@@ -6,120 +6,284 @@ use strict;
 use warnings;
 
 use Mojo::Base 'Mojolicious::Plugin';
-use Mojo::ByteStream;
 use Locale::Country::Multilingual { use_io_layer => 1 };
 use Unicode::Collate;
+use List::MoreUtils qw( zip pairwise );
 
-our $VERSION = 0.05_01;
+our $VERSION = 0.05_02;
 $VERSION = eval $VERSION;
 
 sub register {
 	my $self = shift;
 	my $app  = shift;
-	my $conf = shift || {};
-
-	$conf->{lang}     = uc( $conf->{lang} || 'EN' );
-	$conf->{selected} = '';
+	my $init_opts = shift || {};
 
 	my $collate = Unicode::Collate->new();
 	my $lcm     = Locale::Country::Multilingual->new();
 
-	my $loaded = $lcm->assert_lang( $conf->{lang} );
-	unless ( defined $loaded and uc($loaded) eq uc( $conf->{lang} ) ) {
-		$app->log->error(
-			"Unable to load language " . $conf->{lang} . "; falling back to English" );
-		$lcm->set_lang('en');
-	}
-	else {
-		$lcm->set_lang( $conf->{lang} );
-	}
-
-	my $_html = sub {
-		my %opt = %{ shift || {} };
-		my $code = $opt{selected} ? uc( $opt{selected} ) : $conf->{selected};
-		my $lang = lc( $opt{lang} || $conf->{lang} );
-		my %attr = %{ $opt{attr} || {} };
-		
-		$attr{id}   = 'country' unless defined( $attr{id}   ) and length( $attr{id}   ) > 0;
-		$attr{name} = 'country' unless defined( $attr{name} ) and length( $attr{name} ) > 0;
-
-		my @sorted = $collate->sort( $lcm->all_country_names($lang) );
-		my %list   = ();
-		foreach (@sorted) {
-			$list{$_} = $lcm->country2code( $_, 'LOCALE_CODE_ALPHA_2', $lang );
-		}
-
-		my $options
-			= join "\n", map {
-			my $selected = uc( $list{$_} ) eq $code ? ' selected="selected"' : '';
-			sprintf '<option value="%s"%s>%s</option>', $list{$_}, $selected, $_;
-			} @sorted;
-
-		my $attribs = '';
-		foreach my $k ( sort keys %attr ) {
-			$attr{$k} =~ s/"/&quot;/go;
-			$attribs .= sprintf( ' %s="%s"', $k, $attr{$k} );
-		}
-		substr( $attribs, 0, 1 ) = '';
-
-		return sprintf( "<select %s>\n%s\n</select>", $attribs, $options );
-	};
+	my $conf = $self->_set_conf( $app, $lcm, $init_opts, undef );
 
 	$app->helper(
 		get_country_list => sub {
-			my $self = shift;
+			my $c = shift;
+			my $lang = lc( shift || $conf->{lang} );
 
-			my %opt  = %{ shift       || {} };
-			my $lang = lc( $opt{lang} || $conf->{lang} );
+			unless ( $lang eq $conf->{lang} ) {
+				$lang = $self->_check_lang( $app, $lcm, $lang, $conf->{lang} );
+			}
 
-			my %list = ();
-			@list{ $lcm->all_country_codes } = $lcm->all_country_names($lang);
+			my @codes = $lcm->all_country_codes();
+			my @names = $lcm->all_country_names($lang);
+			my %list  = zip @codes, @names;
 
 			return %list;
 		}
 	);
 
 	$app->helper(
-		show_country_list => sub {
-			my $self = shift;
-			$self->stash( country_drop_down => $_html->(@_) );
-			return;
-		}
-	);
-
-	$app->helper(
 		'code2country' => sub {
-			my $self = shift;
+			my $c    = shift;
 			my $code = lc shift;
 			my $lang = lc( shift || $conf->{lang} );
 
-			return undef unless defined $code and $code;
+			unless ( $lang eq $conf->{lang} ) {
+				$lang = $self->_check_lang( $app, $lcm, $lang, $conf->{lang} );
+			}
+
+			return unless defined $code and $code;
 			return $lcm->code2country( $code, $lang );
 		}
 	);
 
 	$app->helper(
 		'country2code' => sub {
-			my $self    = shift;
+			my $c       = shift;
 			my $country = shift;
 			my $lang    = lc( shift || $conf->{lang} );
 
-			return undef unless defined $country and $country;
+			unless ( $lang eq $conf->{lang} ) {
+				$lang = $self->_check_lang( $app, $lcm, $lang, $conf->{lang} );
+			}
+
+			return unless defined $country and $country;
 			return $lcm->country2code( $country, 'LOCALE_CODE_ALPHA_2', $lang );
 		}
 	);
 
 	$app->helper(
+		'countrysf_conf' => sub {
+			my $c = shift;
+			my $new = shift || {};
+
+			return unless $new and ref($new) eq ref({});
+
+			$conf = $self->_set_conf( $app, $lcm, $new, $conf );
+			return;
+		}
+	);
+
+	$app->helper(
+		'countrysf_conf_reset' => sub {
+			$conf = $self->_set_conf( $app, $lcm, {}, undef );
+			return;
+		}
+	);
+
+	$app->helper(
 		'country_drop_down' => sub {
-			my $self = shift;
-			return Mojo::ByteStream->new( $_html->(@_) );
+			my $c = shift;
+			return $c->country_select_field(@_);
+		}
+	);
+
+	$app->helper(
+		'country_select_field' => sub {
+			my $c = shift;
+			my %opt = %{ shift || {} };
+
+			my $ccode = '';
+
+			# use argument value for country code if it exists and is known
+			# otherwise use value from conf
+			if ( exists $opt{selected} ) {
+				if ( $lcm->code2country( uc( $opt{selected} ), 'en' ) ) {
+					$ccode = uc( $opt{selected} );
+				}
+				else {
+					$app->log->warn( "Unknown country code '" . uc( $opt{selected} ) . "'!" );
+					$ccode = '';
+				}
+			}
+			else {
+				$ccode = $conf->{selected};
+			}
+
+			# use either argument value or configured value for language
+			my $lang = lc( $opt{lang} || $conf->{lang} );
+
+			# check existence of given language
+			unless ( $lang eq $conf->{lang} ) {
+				$lang = $self->_check_lang( $app, $lcm, $lang, $conf->{lang} );
+			}
+
+			# merge attribute conf
+			my %attr = ( %{ $conf->{attr} }, %{ $opt{attr} || {} } );
+
+			# sanity check: form element without "name" attrib does not make sense
+			$attr{name} = 'country' unless defined( $attr{name} );
+
+			my @codes        = $lcm->all_country_codes();
+			my @names        = $lcm->all_country_names($lang);
+			my %countries    = zip @names, @codes;
+			my @sorted_names = $collate->sort( keys %countries );
+			my @sorted_codes = @countries{@sorted_names};
+
+			my @prefer_these = ();
+			my @preferred    = ();
+			if ( exists $opt{prefer} ) {
+				if ( defined $opt{prefer} and ref( $opt{prefer} ) eq ref([]) ) {
+					@prefer_these = @{ $opt{prefer} };
+				}
+			}
+			elsif ( exists $conf->{prefer} ) {
+				@prefer_these = @{ $conf->{prefer} };
+			}
+			if (@prefer_these) {
+				foreach my $code ( @prefer_these ) {
+					if ( my $n = $lcm->code2country( $code, $lang ) ) {
+						my $option = [ $n, $code ];
+						if ( $ccode and $ccode eq $code ) {
+							push @$option, selected => "selected";
+							$ccode = ''; # not again below
+						}
+						push @preferred, $option;
+					}
+				}
+				if (@preferred) {
+					push @preferred, [ '----', '' ];
+				}
+			}
+
+			my @options = ( @preferred, pairwise {
+
+				# $a = $names->[$n], $b = $codes->[$n]
+				my $option = [ $a, $b ];
+				push @$option, selected => "selected" if $ccode and $ccode eq $b;
+				$option;
+			}
+			@sorted_names, @sorted_codes );
+
+			# html code gets generated by Mojolicious
+			return $c->select_field( $attr{name}, \@options, %attr );
 		}
 	);
 
 	return;
 } ## end sub register
 
+sub _set_conf {
+	my ( $self, $app, $lcm, $new, $old ) = @_;
+
+	return unless defined $new and ref($new) eq ref( {} );
+	$old = {} unless defined $old and ref($old) eq ref( {} );
+
+	my $conf = {};
+
+	# code of preselected country
+	if ( exists $new->{selected} and not defined $new->{selected} ) {
+		delete $conf->{selected};
+	}
+	elsif ( defined $new->{selected} and $new->{selected} ) {
+		my $candidate = uc $new->{selected};
+		if ( $lcm->code2country( $candidate, 'en' ) ) {
+
+			# country code known to Locale::Country::Multilingual
+			$conf->{selected} = $candidate;
+		}
+		else {
+			$app->log->warn( "Unknown country code '" . $candidate . "'!" );
+		}
+	}
+	elsif ( defined $old->{selected} and $old->{selected} ) {
+		$conf->{selected} = uc $old->{selected};
+	}
+	else {
+		$conf->{selected} = '';
+	}
+
+	# html attributes of select field
+	if ( defined $old->{attr} and ref( $old->{attr} ) eq ref( {} ) ) {
+		$conf->{attr} = $old->{attr};
+	}
+	else {
+		$conf->{attr} = {};
+	}
+
+	foreach my $k ( keys %{ $new->{attr} } ) {
+		if ( exists $new->{attr}{$k} and not defined $new->{attr}{$k} ) {
+			delete $conf->{attr}{$k};
+		}
+		else {
+			$conf->{attr}{$k} = $new->{attr}{$k};
+		}
+	}
+
+	# we set a default value for the "id" attrib unless it´s explicitly
+	# set to an empty value
+	$conf->{attr}{id} = 'country' unless exists $new->{attr}{id};
+
+	# html form field without "name" attrib makes no sense
+	$conf->{attr}{name} = 'country' unless ( defined $conf->{attr}{name} and $conf->{attr}{name} );
+
+	# language for the country names
+	my $new_lang = $new->{lang} || undef;
+	$conf->{lang} = $self->_check_lang( $app, $lcm, $new_lang, 'en' );
+
+	# preferred countries
+	if ( exists $new->{prefer} ) {
+		if ( defined $new->{prefer} ) {
+			$conf->{prefer} = $new->{prefer};
+		}
+	}
+	elsif ( exists $old->{prefer} ) {
+		$conf->{prefer} = $old->{prefer};
+	}
+
+	return $conf;
+} ## end sub _set_conf
+
+sub _check_lang {
+	my ( $self, $app, $lcm, $new, $default ) = @_;
+	$new     = 'en' unless $new;
+	$default = 'en' unless $default;
+
+	my $loaded = $lcm->assert_lang( $new, $default, 'en' );
+
+	if ( defined $loaded and lc($loaded) eq lc($new) ) {
+		return $new;
+	}
+	elsif ( defined $loaded ) {
+		$app->log->warn( "Loading language '" . $new . "' failed" );
+		$app->log->warn( "Falling back to language '" . $loaded . "'");
+		return $loaded;
+	}
+
+	$app->log->warn( "Loading language '" . $new . " failed" );
+
+	if ( $default ne 'en' ) {
+		$app->log->warn( "Loading fallback language '" . $default . "' failed" );
+	}
+
+	$app->log->error(
+		"Loading language 'en' failed! Broken Installation of Locale::Country::Multilingual?");
+	die "Unable to load a language file!";
+}
+
 1;
+
+
+
+
 
 
 =pod
@@ -130,7 +294,7 @@ Mojolicious::Plugin::CountryDropDown - Provide a dropdown where users can select
 
 =head1 VERSION
 
-version 0.0501
+version 0.0502
 
 =head1 SYNOPSIS
 
@@ -140,45 +304,83 @@ version 0.0501
         my $self = shift;
 
         $self->plugin('CountryDropDown');
-
-        # or $self->plugin( 'CountryDropDown', { lang => 'de' } );
-        # to specify the default language for the country names
-    }
+        ...
 
 In your controller:
 
     get '/' => sub {
         my $self = shift;
-        $self->show_country_list(); # this sets "country_drop_down" in the stash
-    };
+
+        $self->country_select_field_conf({ lang => 'de' }); # this sets the default language 
+        ...
 
 In your template (this time with TemplateToolkit syntax):
 
-    [% country_drop_down %]
-
-Alternatively - using 0.05_01 and up - you can omit the show_country_list() method call
-inside the controller and use a helper method directly in the template, e.g.:
-
-    [% h.country_drop_down({ lang => 'de' }) %]
+    [% h.country_drop_down({ lang => 'fr', attr => { class => 'shiny', } }) %]
 
 =head1 NAME
 
-Mojolicious::Plugin::CountryDrowDown - use a dropdown to select countries in your form
+Mojolicious::Plugin::CountryDropDown - Provide a dropdown where users can select a country
+
+=head1 VERSION
+
+version 0.0502
+
+=head1 NAME
+
+Mojolicious::Plugin::CountryDrowDown - use a dropdown ("select" field) to select countries 
+in your form.
 
 =head1 WARNINGS
 
 Version 0.04 was the first public release and considered a beta release!
-Version 0.05_01 includes some API changes and there may be some more coming
+Version 0.05_02 includes some API changes and there may be some more coming
 before version 0.06 is released - so please watch out when updating!
 
 =head1 CONFIGURATION
 
-You may pass a hash ref on plugin registration. The only key currently 
-processed is "lang" which can be used to set the default language for the
-country names. 
+You may pass a hash ref on plugin registration. The following keys are currently 
+recognized: 
+
+=over 4
+
+=item lang
+
+Language code. The default language for the country names.
+Valid values are those known to C<Locale::Country::Multilingual|Locale::Country::Multilingual>.
+
+=item selected
+
+Country code (ISO 3166 Alpha 2). Sets the country to be selected by default.
+Valid values are those known to C<Locale::Country::Multilingual|Locale::Country::Multilingual>.
+
+=item prefer
+
+Array reference pointing to a list of country codes which are put to the
+top of the select field in the order in which they appear in this list.
+A spacer option is added after them and before the following list of countries.
+The countries specified here aren´t currently removed from the following list
+so that they will appear twice within the select form field.
+If one of these preferred countries is also "selected", the pre-selection will
+happen in the prepended section of preferred countries (and only there).
+
+=item attr
+
+Hash reference whose pairs will be used as HTML attributes within the opening
+"select" tag. No validation is performed in regard to any HTML doctype!
+
+=back
+
 Please refer to the L<Locale::Country::Multilingual|Locale::Country::Multilingual>
 docs for a list of available languages. If you specify an unsupported language,
-or no "lang" at all, "en" will be used as fallback.
+or no "lang" at all, "en" will be used as fallback / default!
+
+The attribute "name" will always be set for the "select" element. By default it´s 
+value will be "country".
+
+The attribute "id" will be set for the "select" element by default, too. Again the
+default value is "country". Unlike the "name" attribute you can remove this
+attribute by setting the value to "undef".
 
 =head1 METHODS/HELPERS
 
@@ -187,68 +389,69 @@ or no "lang" at all, "en" will be used as fallback.
 Returns the name for the given country code (ISO 3166 Alpha 2).
 
     my $code = 'DE';
-    my $name = $self->code2country( $code ); # returns "Germany" unless
-                                             # a different default language was
-                                             # set when registering the plugin
+    my $name = $self->code2country($code); # returns "Germany" unless a
+                                           # different default language was set
+
+The currently configured value is used to determine the language of the country
+name. Optionally you may specifiy the language to use as second param.
 
     my $lang = 'fr';
     my $name = $self->code2country( $code, $lang ); # returns "Allemange"
+
+The language given as second argument is used only for the current method call.
 
 =head2 country2code
 
 Returns the Alpha 2 code for the given country name:
 
-    my $name = 'Allemange';
-    my $code = $self->country2code( $name ); # returns "DE"
+    my $code = $self->country2code( 'Allemange', 'fr' ); # returns "DE"
 
-=head2 show_country_list
+    my $code = $self->country2code( 'Deutschland', 'de' ); # returns "DE"
 
-Sets the stash variable with the dropdown ("select" element).
-The default value used for the "id" and "name" attributes is "country".
+Make sure that the name is given in the currently configured default language
+or specifiy the language as second param!
 
-The method optionally takes a hash ref as param which may contain one
-or more of the following keys:
+The language given as second argument is used only for the current method call.
 
-=over 4
+=head2 countrysf_conf
 
-=item selected
+Updates the configuration of default values. Takes a hash ref.
+See "CONFIGURATION" above for values which are currently allowed / recognized.
+Would typically be used within the program code, not the template.
 
-A ISO 3166 Alpha 2 country code denoting a preselected country.
+    $c->country_conf( {
+        lang      => 'en',
+        selected  => 'DE',
+        preferred => [ 'DE', 'AT', 'CH', ],
+        attr      => { class => 'shinycss', id => 'myId', }
+    })
 
-=item lang
+Configuration values are updated / added; i.e.: if you omit the key "selected"
+in this method call it´s former value will be retained.
+You need to explicitly set any value to "undef" to remove it.
 
-Determines the language of the country names.
-The default is the value specified when registering the plugin (see above).
+This rule also applies to "attr": Keys present there are preserved unless
+explicitly overwritten or set to "undef".
 
-=item attr
+=head2 countrysf_conf_reset
 
-The value is another hash ref whose keys are used as HTML attributes of the 
-"select" element. No validity checking is performed regarding attribute names
-and values.
+Removes or resets all configuration values.
 
-Unless you specify any values for the attributes "id" and "name" they are 
-both set to "country".
+=head2 country_select_field
 
-=back
+Helper method that creates the html fragment with the select field.
 
-    my $selected = 'DE'; # select Germany
-    my $language = 'fr';
-    $self->show_country_list( { select => $selected, lang => $language } );
-
-    $self->show_country_list( {
-            select => $selected, 
-            lang => $language,
-			attr => { id => "cid", name => "cname" }
-    });
+Optionally takes a hash reference with configuration values.
+See "CONFIGURATION" above for values which are currently allowed / recognized.
+These values are used only for the current method call.
 
 =head2 get_country_list
 
 Returns a hash indexed by the Alpha 2 country codes with the country names
 as values.
 
-You may pass a hash ref as param; the only key in there currently recognized
-is "lang" which may be used to override the default language for the country
-names.
+You may pass a language code as param to determine the language used for 
+the country names.
 
 =head1 AUTHORS
 
@@ -261,6 +464,36 @@ Renee Baecker <module@renee-baecker.de>
 =item *
 
 Heiko Jansen <jansen@hbz-nrw.de>
+
+=item *
+
+Skye Shaw <shaw [at] cpan.org>
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is Copyright (c) 2012 by Hochschulbibliothekszentrum NRW (hbz).
+
+This is free software, licensed under:
+
+  The GNU General Public License, Version 3, June 2007
+
+=head1 AUTHORS
+
+=over 4
+
+=item *
+
+Renee Baecker <module@renee-baecker.de>
+
+=item *
+
+Heiko Jansen <jansen@hbz-nrw.de>
+
+=item *
+
+Skye Shaw <sshaw AT lucas.cis.temple.edu>
 
 =back
 
