@@ -12,7 +12,7 @@ use Test::Mojo;
 
 plugin 'CountryDropDown', { prefer => [ 'DE', 'AT', 'CH', ] };
 
-app->log->level( 'debug' );
+app->log->level('debug');
 
 get '/helper1' => 'helper1';
 
@@ -20,9 +20,13 @@ get '/helper2' => 'helper2';
 
 my $t = Test::Mojo->new;
 
-$t->get_ok('/helper1')->status_is(200)->content_like(qr/"><option value="DE">Germany<\/option>.+<option value="DE">Germany</);
+$t->get_ok('/helper1')->status_is(200)
+	->content_like(qr/"><option value="DE">Germany<\/option>.+<option value="DE">Germany</);
 
-$t->get_ok('/helper2')->status_is(200)->content_like(qr/"><option selected="selected" value="DE">Germany<\/option><option value="AT">Austria<\/option><option value="CH">Switzerland<\/option><option value="">----<\/option>.+<option value="DE">Germany</);
+$t->get_ok('/helper2')->status_is(200)
+	->content_like(
+	qr/"><option selected="selected" value="DE">Germany<\/option><option value="AT">Austria<\/option><option value="CH">Switzerland<\/option><option value="">----<\/option>.+<option value="DE">Germany</
+	);
 
 #warn $t->get_ok('/helper2')->_get_content($t->tx);
 

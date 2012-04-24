@@ -20,12 +20,13 @@ my %WriteMakefileArgs = (
   "LICENSE" => "gpl",
   "NAME" => "Mojolicious::Plugin::CountryDropDown",
   "PREREQ_PM" => {
+    "List::MoreUtils" => 0,
     "Locale::Codes" => "3.20",
     "Locale::Country::Multilingual" => "0.23",
     "Mojolicious" => "2.00",
     "Unicode::Collate" => 0
   },
-  "VERSION" => "0.0502",
+  "VERSION" => "0.0503",
   "test" => {
     "TESTS" => "t/*.t"
   }

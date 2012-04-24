@@ -15,8 +15,9 @@ meta-spec:
   version: 1.4
 name: Mojolicious-Plugin-CountryDropDown
 requires:
+  List::MoreUtils: 0
   Locale::Codes: 3.20
   Locale::Country::Multilingual: 0.23
   Mojolicious: 2.00
   Unicode::Collate: 0
-version: 0.0502
+version: 0.0503

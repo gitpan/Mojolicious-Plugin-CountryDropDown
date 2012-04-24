@@ -12,7 +12,7 @@ use Test::Mojo;
 
 plugin 'CountryDropDown', { lang => 'de' };
 
-app->log->level( 'debug' );
+app->log->level('debug');
 
 get '/de_helper' => 'de_helper';
 

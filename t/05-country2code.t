@@ -12,35 +12,35 @@ use Test::Mojo;
 
 plugin 'CountryDropDown';
 
-app->log->level( 'debug' );
+app->log->level('debug');
 
 get '/de' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    my $code = $self->country2code( 'Deutschland', 'de' );
-    $self->render( text => $code );
+	my $code = $self->country2code( 'Deutschland', 'de' );
+	$self->render( text => $code );
 };
 
 get '/en' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    my $code = $self->country2code( 'Germany' );
-    $self->render( text => $code );
+	my $code = $self->country2code('Germany');
+	$self->render( text => $code );
 };
 
 get '/fr' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    my $code = $self->country2code( 'Allemagne', 'fr' );
-    $self->render( text => $code );
+	my $code = $self->country2code( 'Allemagne', 'fr' );
+	$self->render( text => $code );
 };
 
 get '/conf_de' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    $self->countrysf_conf({ lang => 'de' });
-    my $code = $self->country2code('Deutschland');
-    $self->render( text => $code );
+	$self->countrysf_conf( { lang => 'de' } );
+	my $code = $self->country2code('Deutschland');
+	$self->render( text => $code );
 };
 
 my $t = Test::Mojo->new;

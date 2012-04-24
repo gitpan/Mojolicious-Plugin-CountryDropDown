@@ -12,33 +12,33 @@ use Test::Mojo;
 
 plugin 'CountryDropDown';
 
-app->log->level( 'debug' );
+app->log->level('debug');
 
 get '/ref' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    my %hash = $self->get_country_list();
-    $self->render( text => ref(\%hash) );
+	my %hash = $self->get_country_list();
+	$self->render( text => ref( \%hash ) );
 };
 
 get '/val' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    my %hash = $self->get_country_list();
-    $self->render( text => $hash{'DE'} );
+	my %hash = $self->get_country_list();
+	$self->render( text => $hash{'DE'} );
 };
 
 get '/val_lang' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    my %hash = $self->get_country_list('fr');
-    $self->render( text => $hash{'DE'} );
+	my %hash = $self->get_country_list('fr');
+	$self->render( text => $hash{'DE'} );
 };
 
 get '/conf_lang' => sub {
 	my $self = shift;
 
-	$self->countrysf_conf({ lang => 'de' });
+	$self->countrysf_conf( { lang => 'de' } );
 	my %hash = $self->get_country_list();
 	$self->render( text => $hash{'DE'} );
 };

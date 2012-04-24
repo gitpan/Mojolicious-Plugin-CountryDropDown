@@ -12,7 +12,7 @@ use Test::Mojo;
 
 plugin 'CountryDropDown';
 
-app->log->level( 'debug' );
+app->log->level('debug');
 
 get '/helper1' => 'helper1';
 
@@ -26,7 +26,9 @@ $t->get_ok('/helper1')->status_is(200)->content_like(qr/<select id="country" nam
 
 $t->get_ok('/helper2')->status_is(200)->content_like(qr/<select id="myid" name="myname">/);
 
-$t->get_ok('/helper3')->status_is(200)->content_like(qr/<select class="somecssclass" data-wtf="xxx" id="myid" name="myname">/)->content_like(qr/>Deutschland</);
+$t->get_ok('/helper3')->status_is(200)
+	->content_like(qr/<select class="somecssclass" data-wtf="xxx" id="myid" name="myname">/)
+	->content_like(qr/>Deutschland</);
 
 __DATA__
 

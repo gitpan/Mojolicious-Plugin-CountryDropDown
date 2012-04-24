@@ -12,7 +12,7 @@ use Test::Mojo;
 
 plugin 'CountryDropDown', { attr => { 'data-role' => 'test', class => 'elegant' }, lang => 'de', };
 
-app->log->level( 'debug' );
+app->log->level('debug');
 
 get '/helper1' => 'helper1';
 
@@ -21,10 +21,10 @@ get '/helper2' => 'helper2';
 get '/helper3' => 'helper3';
 
 get '/helper4' => sub {
-    my $self = shift;
+	my $self = shift;
 
-    $self->countrysf_conf({ attr => { 'data-role' => undef } });
-    $self->render();
+	$self->countrysf_conf( { attr => { 'data-role' => undef } } );
+	$self->render();
 };
 
 get '/helper5' => sub {
@@ -36,17 +36,25 @@ get '/helper5' => sub {
 
 my $t = Test::Mojo->new;
 
-$t->get_ok('/helper1')->status_is(200)->content_like(qr/<select class="elegant" data-role="test" id="country" name="country">/)->content_like(qr/>Deutschland</);
+$t->get_ok('/helper1')->status_is(200)
+	->content_like(qr/<select class="elegant" data-role="test" id="country" name="country">/)
+	->content_like(qr/>Deutschland</);
 
-$t->get_ok('/helper2')->status_is(200)->content_like(qr/<select class="elegant" data-role="test" id="myid" name="myname">/);
+$t->get_ok('/helper2')->status_is(200)
+	->content_like(qr/<select class="elegant" data-role="test" id="myid" name="myname">/);
 
-$t->get_ok('/helper4')->status_is(200)->content_like(qr/<select class="elegant" id="country" name="country">/);
+$t->get_ok('/helper4')->status_is(200)
+	->content_like(qr/<select class="elegant" id="country" name="country">/);
 
-$t->get_ok('/helper3')->status_is(200)->content_like(qr/<select class="somecssclass" data-wtf="xxx" id="myid" name="myname">/)->content_like(qr/>Allemagne</);
+$t->get_ok('/helper3')->status_is(200)
+	->content_like(qr/<select class="somecssclass" data-wtf="xxx" id="myid" name="myname">/)
+	->content_like(qr/>Allemagne</);
 
-$t->get_ok('/helper1')->status_is(200)->content_like(qr/<select class="elegant" id="country" name="country">/);
+$t->get_ok('/helper1')->status_is(200)
+	->content_like(qr/<select class="elegant" id="country" name="country">/);
 
-$t->get_ok('/helper5')->status_is(200)->content_like(qr/<select id="country" name="country">/)->content_like(qr/>Germany</);
+$t->get_ok('/helper5')->status_is(200)->content_like(qr/<select id="country" name="country">/)
+	->content_like(qr/>Germany</);
 
 __DATA__
 
