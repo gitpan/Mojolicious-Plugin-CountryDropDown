@@ -1,9 +1,9 @@
 
 
 This archive contains the distribution Mojolicious-Plugin-CountryDropDown,
-version 0.0503:
+version 0.0504:
 
-  Provide a dropdown where users can select a country
+  Provide a localizable dropdown where users can select a country
 
 This software is Copyright (c) 2012 by Hochschulbibliothekszentrum NRW (hbz).
 

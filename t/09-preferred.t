@@ -4,7 +4,7 @@ use warnings;
 
 BEGIN { $ENV{MOJO_NO_IPV6} = $ENV{MOJO_POLL} = 1 }
 
-use Test::More tests => 6;
+use Test::More tests => 8;
 
 # testing code starts here
 use Mojolicious::Lite;
@@ -20,13 +20,11 @@ get '/helper2' => 'helper2';
 
 my $t = Test::Mojo->new;
 
-$t->get_ok('/helper1')->status_is(200)
-	->content_like(qr/"><option value="DE">Germany<\/option>.+<option value="DE">Germany</);
+$t->get_ok('/helper1')->status_is(200)->content_like(qr/<option[^>]+value="DE"[^>]*>Germany<.+>Germany</);
 
-$t->get_ok('/helper2')->status_is(200)
-	->content_like(
-	qr/"><option selected="selected" value="DE">Germany<\/option><option value="AT">Austria<\/option><option value="CH">Switzerland<\/option><option value="">----<\/option>.+<option value="DE">Germany</
-	);
+$t->get_ok('/helper2')->status_is(200)->content_like(qr/<option[^>]+selected="selected"[^>]*>Germany</)
+    ->content_like( qr/>Germany<\/option>.+>Austria<\/option>.+>Switzerland<\/option>.+>Germany</ )
+    ->content_like(qr/<option[^>]+disabled="disabled"[^>]*>-----<\/option>/);
 
 #warn $t->get_ok('/helper2')->_get_content($t->tx);
 
@@ -47,7 +45,7 @@ __DATA__
   <head></head>
   <body>
     <form>
-      <%= country_select_field({ selected => 'DE' }) %>
+      <%= country_select_field({ select => 'DE' }) %>
 	</form>
   </body>
 </html>

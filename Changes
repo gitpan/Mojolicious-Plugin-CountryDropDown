@@ -1,6 +1,11 @@
 Revision history for Mojolicious-Plugin-CountryDropDown
 
-0.0503    2012-04-24 14:21:46 Europe/Berlin
+0.0504    2012-09-20 16:08:49 Europe/Berlin
+      + Extensive rewrite with many API changes
+      + Support for Mojolicious::Plugin::I18N
+      + Support for ALPHA_3 and NUMERIC codesets for country codes
+
+0.0503    2012-04-24
       + Added List::MoreUtils to Prereqs (thanks, CPAN Testers)
       + PerlTidy	
 

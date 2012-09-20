@@ -14,9 +14,9 @@ t/03-code2country.t
 t/04-code2country-de.t
 t/05-country2code.t
 t/06-html-attribs.t
-t/07-html-attribs-default.t
 t/08-get-hash.t
 t/09-preferred.t
+t/10-config.t
 t/99_check_manifest.t
 t/author-critic.t
 

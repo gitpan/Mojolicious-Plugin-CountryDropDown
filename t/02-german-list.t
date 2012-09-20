@@ -10,7 +10,7 @@ use Test::More tests => 6;
 use Mojolicious::Lite;
 use Test::Mojo;
 
-plugin 'CountryDropDown', { lang => 'de' };
+plugin 'CountryDropDown', { language => 'de' };
 
 app->log->level('debug');
 
@@ -43,7 +43,7 @@ __DATA__
   <head></head>
   <body>
     <form>
-      <%= country_select_field({ lang => 'en' }) %>
+      <%= country_select_field({ language => 'en' }) %>
     </form>
   </body>
 </html>

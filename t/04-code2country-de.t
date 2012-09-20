@@ -10,30 +10,35 @@ use Test::More tests => 9;
 use Mojolicious::Lite;
 use Test::Mojo;
 
-plugin 'CountryDropDown', { lang => 'DE' };
+plugin 'CountryDropDown', { language => 'DE', codeset => 'NUMERIC' };
+
+# codeset config should make no difference
 
 app->log->level('debug');
 
 get '/de' => sub {
-	my $self = shift;
+    my $self = shift;
 
-	my $country = $self->code2country('DE');
-	$self->render( text => $country );
+    # use config language
+    my $country = $self->code2country('DE');
+    $self->render( text => $country );
 };
 
 get '/en' => sub {
-	my $self = shift;
+    my $self = shift;
 
-	my $country = $self->code2country( 'DE', 'en' );
-	$self->render( text => $country );
+    # override config value
+    my $country = $self->code2country( 'DE', 'en' );
+    $self->render( text => $country );
 };
 
 get '/conf' => sub {
-	my $self = shift;
+    my $self = shift;
 
-	$self->countrysf_conf( { lang => 'fr' } );
-	my $country = $self->code2country('DE');
-	$self->render( text => $country );
+    # replace config value and use new value
+    $self->csf_conf( { language => 'fr' } );
+    my $country = $self->code2country('DE');
+    $self->render( text => $country );
 };
 
 my $t = Test::Mojo->new;
