@@ -12,8 +12,8 @@ use Unicode::Collate;
 use List::MoreUtils qw( zip pairwise );
 use Carp qw(confess);
 
-our $VERSION = 0.05_04;
-$VERSION = eval $VERSION;
+our $VERSION = 0.06;
+$VERSION = eval $VERSION; ## no critic ProhibitStringyEval
 
 sub register {
     my ( $plugin, $app, $opts ) = @_;
@@ -30,10 +30,10 @@ sub register {
 
     $app->helper(
         'country_select_field' => sub {
-            my ( $app, $opts ) = @_;
+            my ( $c, $opts ) = @_;
 
             my $selected = $opts->{select} || $plugin->{_conf}->{select} || '';
-            my %countries = %{ $plugin->_build_country_list( $app, $opts ) };
+            my %countries = %{ $plugin->_build_country_list( $c, $opts ) };
 
             my @preferred = ();
             if ( exists $opts->{prefer} and ( ref $opts->{prefer} eq ref [] ) ) {
@@ -88,7 +88,7 @@ sub register {
                 delete $attr{id};
             }
 
-            return $app->select_field( $name, \@options, %attr );
+            return $c->select_field( $name, \@options, %attr );
         }
     );
 
@@ -96,15 +96,15 @@ sub register {
 
     $app->helper(
         'csf_country_list' => sub {
-            my $app = shift;
+            my $c    = shift;
             my $opts = shift // {};
-            return $plugin->_build_country_list( $app, $opts );
+            return $plugin->_build_country_list( $c, $opts );
         }
     );
 
     $app->helper(
         'csf_conf' => sub {
-            my ( $app, $new ) = @_;
+            my ( $c, $new ) = @_;
 
             unless ( defined $new ) {
                 return $plugin->{_conf};
@@ -114,21 +114,21 @@ sub register {
                 delete $plugin->{_conf};
             }
 
-            $plugin->_build_conf( $app, $new );
+            $plugin->_build_conf( $c, $new );
             return $plugin->{_conf};
         }
     );
 
     $app->helper(
         'code2country' => sub {
-            my ( $app, $code ) = ( shift, shift );
+            my ( $c, $code ) = ( shift, shift );
 
             unless ( defined $code and $code ) {
-                $app->log->warn('code2country() called without a code');
+                $c->app->log->warn('code2country() called without a code');
                 return;
             }
 
-            my $lang = $plugin->_get_language( $app, shift );
+            my $lang = $plugin->_get_language( $c, shift );
 
             return $plugin->{_lcm}->code2country( $code, $lang );
         }
@@ -136,12 +136,14 @@ sub register {
 
     $app->helper(
         'country2code' => sub {
-            my ( $app, $country, $lang, $codeset ) = @_;
+            my ( $c, $country, $lang, $codeset ) = @_;
 
-            return unless defined $country and $country;
+			unless ( defined $country and $country ) {
+				$c->app->log->warn('country2code() called without a country name');
+				return;
+			}
 
-            $lang = $plugin->_get_language( $app, $lang );
-
+            $lang    = $plugin->_get_language( $app, $lang );
             $codeset = $plugin->_check_codeset( $app, $codeset ) // $plugin->{_conf}->{codeset};
 
             return $plugin->{_lcm}->country2code( $country, $codeset, $lang );
@@ -153,7 +155,7 @@ sub register {
 # Determine the most appropriate language to use using a fallback hierarchy
 
 sub _get_language {
-    my ( $self, $app, $param ) = @_;
+    my ( $self, $c, $param ) = @_;
 
     # param considered first
     if ( defined $param ) {
@@ -164,22 +166,18 @@ sub _get_language {
 
     # explicitly configured languages considered next
     if ( exists $self->{_conf}->{language} ) {
-        my $l = $self->{_conf}->{language};
-        if ( $self->_check_lng_avail($l) ) {
-            return $l;
-        }
-        $app->log->warn('The configured language is not available');
+        return $self->{_conf}->{language};
     }
 
     # fallback: language determined by I18N plugin
-    if ( defined $app->stash->{i18n}
-         && ( my $l = $app->stash->{i18n}->languages() ) )
+    if ( defined $c->stash->{i18n}
+         && ( my $l = $c->stash->{i18n}->languages() ) )
     {
         if ( $self->_check_lng_avail($l) ) {
             return $l;
         }
 
-        $app->log->debug( 'The language determined by the I18N plugin is not available; using fallback "en"' );
+        $c->app->log->debug( 'The language determined by the I18N plugin is not available; using fallback "en"' );
     }
 
     # fallback: default = en
@@ -188,7 +186,7 @@ sub _get_language {
     }
 
     # 'en' not available? something´s borken...
-    $app->log->error( "Loading language 'en' failed! Broken installation of Locale::Country::Multilingual?" );
+    $c->app->log->error( "Loading language 'en' failed! Broken installation of Locale::Country::Multilingual?" );
     confess "Default language 'en' not available!";
 } ## end sub _get_language
 
@@ -214,9 +212,10 @@ sub _check_lng_avail {
 }
 
 sub _build_conf {
-    my ( $self, $app, $opts ) = @_;
+    my ( $self, $c, $opts ) = @_;
 
     unless ( defined $self->{_conf} ) {
+		# populate basic defaults
         $self->{_conf} = { html_attr => { name => 'country' }, codeset => 'LOCALE_CODE_ALPHA_2', };
     }
 
@@ -224,7 +223,7 @@ sub _build_conf {
     foreach my $p (qw/ select language names prefer exclude html_attr codeset /) {
         if ( exists $conf{$p} ) {
             my $method = '_' . $p;
-            $self->$method( $app, $conf{$p} );
+            $self->$method( $c, $conf{$p} );
         }
     }
 
@@ -232,23 +231,25 @@ sub _build_conf {
 }
 
 sub _build_country_list {
-    my ( $self, $app ) = ( shift, shift );
+    my ( $self, $c ) = ( shift, shift );
     my %opts = %{ shift || {} };
 
-    $self->{_lcm}->set_lang( $self->_get_language( $app, $opts{language} ) );
+    $self->{_lcm}->set_lang( $self->_get_language( $c, $opts{language} ) );
 
     # get the codes from the right codeset and the country names in the language set above
-    my $codeset = $self->_check_codeset( $app, $opts{codeset} )
+    my $codeset = $self->_check_codeset( $c, $opts{codeset} )
         || $self->{_conf}->{codeset};
     my $list = {};
+
     if ( $codeset eq 'LOCALE_CODE_ALPHA_2' ) {
         my @codes = $self->{_lcm}->all_country_codes($codeset);
         my @names = $self->{_lcm}->all_country_names();
         %{$list} = zip @codes, @names;
     }
     else {
-        foreach my $c ( $self->{_lcm}->all_country_codes($codeset) ) {
-            $list->{$c} = $self->{_lcm}->code2country($c);
+		# performance killer, but I don´t see another solution
+        foreach my $code ( $self->{_lcm}->all_country_codes($codeset) ) {
+            $list->{$code} = $self->{_lcm}->code2country($code);
         }
     }
 
@@ -284,7 +285,7 @@ sub _build_country_list {
 } ## end sub _build_country_list
 
 sub _check_codeset {
-    my ( $self, $app, $candidate ) = @_;
+    my ( $self, $c, $candidate ) = @_;
 
     return unless defined $candidate and $candidate;
     $candidate = uc($candidate);
@@ -297,7 +298,7 @@ sub _check_codeset {
         return $candidate;
     }
 
-    $app->log->warn('Invalid value specified for codeset');
+    $c->app->log->warn('Invalid value specified for codeset');
 
     return;
 }
@@ -305,11 +306,11 @@ sub _check_codeset {
 # Following here are helper functions for (re-)setting various config elements
 
 sub _select {
-    my ( $self, $app, $s ) = @_;
+    my ( $self, $c, $s ) = @_;
 
     if ( defined $s ) {
         if ( ref $s ) {
-            $app->log->warn('Please provide a scalar value');
+            $c->app->log->warn('Please provide a scalar value');
         }
         else {
             $self->{_conf}->{select} = uc($s);
@@ -323,10 +324,10 @@ sub _select {
 }
 
 sub _codeset {
-    my ( $self, $app, $c ) = @_;
+    my ( $self, $c, $code ) = @_;
 
-    if ( defined $c ) {
-        if ( my $val = $self->_check_codeset( $app, $c ) ) {
+    if ( defined $code ) {
+        if ( my $val = $self->_check_codeset( $c, $code ) ) {
             $self->{_conf}->{codeset} = $val;
         }
     }
@@ -338,10 +339,16 @@ sub _codeset {
 }
 
 sub _language {
-    my ( $self, $app, $l ) = @_;
+    my ( $self, $c, $lang ) = @_;
 
-    if ( defined $l and $l ) {
-        $self->{_conf}->{language} = $l;
+    if ( defined $lang and $lang ) {
+		if ( $self->_check_lng_avail($lang) ) {
+	        $self->{_conf}->{language} = $lang;
+		}
+		else {
+			$c->app->log->warn("Language '$lang' is not supported!");
+			delete $self->{_conf}->{language};
+		}
     }
     else {
         delete $self->{_conf}->{language};
@@ -351,16 +358,16 @@ sub _language {
 }
 
 sub _prefer {
-    my ( $self, $app, $c ) = @_;
+    my ( $self, $c, $codes ) = @_;
 
-    if ( defined $c and $c ) {
-        if ( ref $c and not( ref $c eq ref [] ) ) {
-            $app->log->warn( 'Either provide scalar value or array ref with name(s) of preferred countries' );
+    if ( defined $codes and $codes ) {
+        if ( ref $codes and not( ref $codes eq ref [] ) ) {
+            $c->app->log->warn( 'Either provide scalar value or array ref with name(s) of preferred countries' );
         }
         else {
-            $c = [$c] unless ref $c;
-            $_ = uc($_) foreach ( @{$c} );
-            $self->{_conf}->{prefer} = $c;
+            $codes = [$codes] unless ref $codes;
+            $_ = uc($_) foreach ( @{$codes} );
+            $self->{_conf}->{prefer} = $codes;
         }
     }
     else {
@@ -371,16 +378,16 @@ sub _prefer {
 }
 
 sub _exclude {
-    my ( $self, $app, $c ) = @_;
+    my ( $self, $c, $codes ) = @_;
 
-    if ( defined $c and $c ) {
-        if ( ref $c and not( ref $c eq ref [] ) ) {
-            $app->log->warn( 'Either provide scalar value or array ref with name(s) of excluded countries' );
+    if ( defined $codes and $codes ) {
+        if ( ref $codes and not( ref $codes eq ref [] ) ) {
+            $c->app->log->warn( 'Either provide scalar value or array ref with name(s) of excluded countries' );
         }
         else {
-            $c = [$c] unless ref $c;
-            $_ = uc($_) foreach ( @{$c} );
-            $self->{_conf}->{exclude} = $c;
+            $codes = [$codes] unless ref $codes;
+            $_ = uc($_) foreach ( @{$codes} );
+            $self->{_conf}->{exclude} = $codes;
         }
     }
     else {
@@ -391,17 +398,17 @@ sub _exclude {
 }
 
 sub _names {
-    my ( $self, $app, $n ) = @_;
+    my ( $self, $c, $names ) = @_;
 
-    if ( defined $n and $n ) {
-        if ( not ref $n eq ref {} ) {
-            $app->log->warn( 'Please provide a hash ref with a mapping of country ids to names!' );
+    if ( defined $names and $names ) {
+        if ( not ref $names eq ref {} ) {
+            $c->app->log->warn( 'Please provide a hash ref with a mapping of country ids to names!' );
         }
         else {
-            foreach ( keys %{$n} ) {
-                $n->{ uc($_) } = delete $n->{$_};
+            foreach ( keys %{$names} ) {
+                $names->{ uc($_) } = delete $names->{$_};
             }
-            $self->{_conf}->{names} = $n;
+            $self->{_conf}->{names} = $names;
         }
     }
     else {
@@ -412,16 +419,16 @@ sub _names {
 }
 
 sub _html_attr {
-    my ( $self, $app, $a ) = @_;
+    my ( $self, $c, $attr ) = @_;
 
-    if ( defined $a and $a ) {
-        if ( not ref $a eq ref {} ) {
-            $app->log->warn('Please provide a hash ref with attribute names and values!');
+    if ( defined $attr and $attr ) {
+        if ( not ref $attr eq ref {} ) {
+            $c->app->log->warn('Please provide a hash ref with attribute names and values!');
         }
         else {
-            $self->{_conf}->{html_attr} = $a;
+            $self->{_conf}->{html_attr} = $attr;
             unless ( defined $self->{_conf}->{html_attr}->{name}
-                     and $self->{_conf}->{html_attr}->{name} ne '' )
+                     and $self->{_conf}->{html_attr}->{name} =~ /\A\S+\Z/ )
             {
                 $self->{_conf}->{html_attr}->{name} = 'country';
             }
@@ -442,6 +449,8 @@ sub _html_attr {
 
 
 
+
+
 =pod
 
 =head1 NAME
@@ -450,7 +459,7 @@ Mojolicious::Plugin::CountryDropDown - Provide a localizable dropdown where user
 
 =head1 VERSION
 
-version 0.0504
+version 0.06
 
 =head1 SYNOPSIS
 
@@ -478,22 +487,19 @@ In your template (this time with TemplateToolkit syntax):
 
 =head1 NAME
 
-Mojolicious::Plugin::CountryDropDown - Provide a dropdown where users can select a country
+Mojolicious::Plugin::CountryDrowDown - use a localized dropdown ("select" field) to let
+your users select countries in your HTML forms.
 
 =head1 VERSION
 
-version 0.0504
-
-=head1 NAME
-
-Mojolicious::Plugin::CountryDrowDown - use a dropdown ("select" field) to select countries 
-in your form.
+Version 0.06
 
 =head1 WARNINGS
 
 Version 0.04 was the first public release and considered a beta release!
-Version 0.05_0x include some extensive API changes and there may be some more coming
-before version 0.06 is released - so please watch out when updating!
+
+Version 0.05_0x and later include some extensive API changes and are 
+generally incompatible with 0.04 - so please watch out when updating!
 
 =head1 CONFIGURATION
 
@@ -514,7 +520,9 @@ Invalid values will be silently ignored. See section "LANGUAGE FALLBACKS" below.
 Country code (string). Sets the country to be selected by default.
 
 Valid values are those known to L<Locale::Country::Multilingual|Locale::Country::Multilingual>.
-Invalid values will be silently ignored. See section "CODESETS" below.
+Invalid values (i.e. unknown codes) will be accepted but of course have no effect when generating 
+the form (unless you add artificial country names for these codes using the C<names> config key).
+See section "CODESETS" below.
 
 =item prefer
 
@@ -652,8 +660,9 @@ Make sure that the name is given in the currently configured default language
 or specifiy the language as second param!
 
 If you want to get a code from a different codeset than the default ALPHA_2 you
-can specifiy the codeset as third param. If you want to specifiy a codeset but no 
-language please pass "undef" as second parameter.
+can specifiy the codeset as third param.
+If you want to specifiy a codeset but no language you need to pass an undefined
+value as second param.
 
 The values given for the language and codeset parameters are used only for the 
 current method call.
@@ -695,46 +704,24 @@ If there is a key for a configuration entry but the value is undef the respectiv
 configuration entry is removed (or reset to it's default value).
 
 =item *
-If there is a key for a configuration entry and it carries a non-undef value that 
+If there is a key for a configuration entry and it carries a non-undef value, then that 
 value replaces the configured value.
 
-There is no way to "modify" a configuration entry (e.g. append additional html attributes).
+There is no way to "modify" a configuration entry (e.g. append additional html attributes)!
 
 =item *
-If the hash is empty (i.e. if you call C<$c->csf_conf({})>), the whole configuration is
+If the hash is empty (i.e. if you call C<$c-E<gt>csf_conf({})>), the whole configuration is
 reset.
 
 =back
 
-=head1 AUTHORS AND CONTRIBUTORS
-
-=over 4
-
-=item *
-
-Heiko Jansen <jansen [at] hbz-nrw.de>
-
-=item *
-
-Skye Shaw <shaw [at] cpan.org>
-
-=item *
-
-Renee Baecker <module [at] renee-baecker.de>
-
-=back
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2012 by Hochschulbibliothekszentrum NRW (hbz).
-
-This is free software, licensed under:
-
-  The GNU General Public License, Version 3, June 2007
-
 =head1 AUTHORS
 
 =over 4
+
+=item *
+
+Renee Baecker <module@renee-baecker.de>
 
 =item *
 
@@ -743,10 +730,6 @@ Heiko Jansen <jansen@hbz-nrw.de>
 =item *
 
 Skye Shaw <sshaw AT lucas.cis.temple.edu>
-
-=item *
-
-Renee Baecker <module@renee-baecker.de>
 
 =back
 

@@ -10,7 +10,7 @@ use ExtUtils::MakeMaker 6.30;
 
 my %WriteMakefileArgs = (
   "ABSTRACT" => "Provide a localizable dropdown where users can select a country",
-  "AUTHOR" => "Heiko Jansen <jansen\@hbz-nrw.de>, Skye Shaw <sshaw AT lucas.cis.temple.edu>, Renee Baecker <module\@renee-baecker.de>",
+  "AUTHOR" => "Renee Baecker <module\@renee-baecker.de>, Heiko Jansen <jansen\@hbz-nrw.de>, Skye Shaw <sshaw AT lucas.cis.temple.edu>",
   "BUILD_REQUIRES" => {},
   "CONFIGURE_REQUIRES" => {
     "ExtUtils::MakeMaker" => "6.30"
@@ -20,14 +20,13 @@ my %WriteMakefileArgs = (
   "LICENSE" => "gpl",
   "NAME" => "Mojolicious::Plugin::CountryDropDown",
   "PREREQ_PM" => {
-    "Carp" => 0,
     "List::MoreUtils" => 0,
     "Locale::Codes" => "3.20",
     "Locale::Country::Multilingual" => "0.23",
     "Mojolicious" => "2.00",
     "Unicode::Collate" => 0
   },
-  "VERSION" => "0.0504",
+  "VERSION" => "0.06",
   "test" => {
     "TESTS" => "t/*.t"
   }

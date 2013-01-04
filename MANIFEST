@@ -17,6 +17,7 @@ t/06-html-attribs.t
 t/08-get-hash.t
 t/09-preferred.t
 t/10-config.t
+t/11-custom-countries.t
 t/99_check_manifest.t
 t/author-critic.t
 

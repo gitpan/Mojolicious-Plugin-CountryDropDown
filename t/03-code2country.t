@@ -4,7 +4,7 @@ use warnings;
 
 BEGIN { $ENV{MOJO_NO_IPV6} = $ENV{MOJO_POLL} = 1 }
 
-use Test::More tests => 24;
+use Test::More tests => 27;
 
 # testing code starts here
 use Mojolicious::Lite;
@@ -72,6 +72,14 @@ get '/conf2' => sub {
     $self->render( text => $country );
 };
 
+get '/wrong_call' => sub {
+	my $self = shift;
+
+	my $country = $self->code2country('');
+	$country = 'undef' if not defined $country;
+	$self->render( text => $country );
+};
+
 my $t = Test::Mojo->new;
 
 $t->get_ok('/en')->status_is(200)->content_is('Germany');
@@ -89,4 +97,6 @@ $t->get_ok('/de_alpha3')->status_is(200)->content_is('Deutschland');
 $t->get_ok('/conf')->status_is(200)->content_is('Allemagne');
 
 $t->get_ok('/conf2')->status_is(200)->content_is('Germany');
+
+$t->get_ok('/wrong_call')->status_is(200)->content_is('undef');
 

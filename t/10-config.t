@@ -4,7 +4,7 @@ use warnings;
 
 BEGIN { $ENV{MOJO_NO_IPV6} = $ENV{MOJO_POLL} = 1 }
 
-use Test::More tests => 8;
+use Test::More tests => 11;
 
 # testing code starts here
 use Mojolicious::Lite;
@@ -44,6 +44,8 @@ my $test6 = {
 
 my $test7 = { html_attr => { name => 'country' }, codeset => 'LOCALE_CODE_ALPHA_2', };
 
+my $test10 = { language => 'de', html_attr => { name => 'country' }, codeset => 'LOCALE_CODE_ALPHA_2', select => 'FOOBAR' };
+
 get '/conf' => sub {
     my $self = shift;
 
@@ -68,6 +70,15 @@ get '/conf' => sub {
 
     my $conf7 = $self->csf_conf( {} );
     is_deeply( $conf7, $test7, "Reset configuration to default" );
+
+	my $conf8 = $self->csf_conf( { html_attr => { name => 'country' }, codeset => 'LOCALE_CODE_FOOBAR', } );
+	is_deeply( $conf8, $test7, "Unknown codeset is ignored" );
+
+	my $conf9 = $self->csf_conf( { language  => 'FOOBAR', } );
+	is_deeply( $conf9, $test7, "Unknown language is ignored" );
+
+	my $conf10 = $self->csf_conf( { language  => 'de', select => 'fooBar', } );
+	is_deeply( $conf10, $test10, "Unknown pre-selected country is accepted" );
 
     $self->render( text => 'test' );
 };

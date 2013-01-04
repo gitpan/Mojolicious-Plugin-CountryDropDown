@@ -1,5 +1,11 @@
 Revision history for Mojolicious-Plugin-CountryDropDown
 
+0.06      2013-01-04 21:39:56 Europe/Berlin
+	  Please note that 0.06 is incompatible with prior non-dev release 0.04!
+      + Minor POD corrections
+	  + Fixed error logging: method call on the appropriate object
+	  + More tests
+
 0.0504    2012-09-20 16:08:49 Europe/Berlin
       + Extensive rewrite with many API changes
       + Support for Mojolicious::Plugin::I18N
